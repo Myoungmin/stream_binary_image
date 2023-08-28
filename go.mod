@@ -2,4 +2,4 @@ module github.com/Myoungmin/stream_binary_image
 
 go 1.20
 
-require golang.org/x/net v0.14.0 // indirect
+require github.com/gorilla/websocket v1.5.0 // indirect

@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 )
 
 const (
-	width    = 2048
-	height   = 2048
+	width    = 1024
+	height   = 1024
 	fps      = 60
 	interval = int(1000000 / fps)
 )
@@ -23,7 +23,7 @@ var (
 func main() {
 	port := 8080
 
-	http.Handle("/", websocket.Handler(socketHandler))
+	http.HandleFunc("/", socketHandler)
 	http.HandleFunc("/image", imageHandler)
 
 	fmt.Printf("Listening on port %d...\n", port)
@@ -33,7 +33,19 @@ func main() {
 	}
 }
 
-func socketHandler(ws *websocket.Conn) {
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
+
+func socketHandler(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		fmt.Printf("WebSocket upgrade error: %s\n", err.Error())
+		return
+	}
+	defer conn.Close()
+
 	fmt.Println("WebSocket opened.")
 
 	ticker := time.NewTicker(time.Microsecond * time.Duration(interval))
@@ -47,15 +59,14 @@ func socketHandler(ws *websocket.Conn) {
 			if openSocket {
 				frame++
 				frameData := images[frame%2]
-				_, err := ws.Write(frameData)
+				err := conn.WriteMessage(websocket.BinaryMessage, frameData)
 				if err != nil {
 					fmt.Printf("Error writing frame: %s\n", err.Error())
 					return
 				}
 			}
 		default:
-			var event string
-			err := websocket.Message.Receive(ws, &event)
+			_, event, err := conn.ReadMessage()
 			if err != nil {
 				fmt.Printf("WebSocket error: %s\n", err.Error())
 				return
@@ -64,9 +75,9 @@ func socketHandler(ws *websocket.Conn) {
 			if !openSocket {
 				openSocket = true
 			} else {
-				if event == "start" {
+				if string(event) == "start" {
 					openSocket = true
-				} else if event == "quit" {
+				} else if string(event) == "quit" {
 					openSocket = false
 				}
 			}

@@ -53,6 +53,20 @@ func socketHandler(w http.ResponseWriter, r *http.Request) {
 
 	openSocket := false
 
+	eventCh := make(chan string)
+
+	// Start a goroutine to handle events asynchronously
+	go func() {
+		for {
+			_, event, err := conn.ReadMessage()
+			if err != nil {
+				fmt.Printf("WebSocket error: %s\n", err.Error())
+				return
+			}
+			eventCh <- string(event)
+		}
+	}()
+
 	for {
 		select {
 		case <-ticker.C:
@@ -65,19 +79,13 @@ func socketHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-		default:
-			_, event, err := conn.ReadMessage()
-			if err != nil {
-				fmt.Printf("WebSocket error: %s\n", err.Error())
-				return
-			}
-
+		case event := <-eventCh:
 			if !openSocket {
 				openSocket = true
 			} else {
-				if string(event) == "start" {
+				if event == "start" {
 					openSocket = true
-				} else if string(event) == "quit" {
+				} else if event == "quit" {
 					openSocket = false
 				}
 			}
